@@ -1,6 +1,6 @@
 {
   "name": "@fxzer/claude-code-switch",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Claude Code 供应商/模型/API Keys切换CLI工具",
   "main": "bin/switch.js",
   "type": "commonjs",

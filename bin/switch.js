@@ -584,7 +584,7 @@ if (args.includes('--help') || args.includes('-h')) {
   ccsw        # 启动交互式配置
 
 配置文件位置:
-  - ~/.ccsw/config.json
+  - ~/.claude/ccsw-providers.json
 
 更多信息请访问: https://github.com/your-repo/claude-code-switch
   `);

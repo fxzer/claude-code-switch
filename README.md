@@ -34,7 +34,7 @@ npm link
 ccsw
 ```
 
-然后编辑 `~/.ccsw/config.json` 文件，添加你的真实 API Keys：
+然后编辑 `~/.claude/ccsw-providers.json` 文件，添加你的真实 API Keys：
 
 ```json
 {
@@ -189,13 +189,13 @@ ccsw
 
 ## 📁 配置文件位置
 
-- **配置文件**: `~/.ccsw/config.json`
-- **配置模板**: `config.template.json`
+- **配置文件**: `~/.claude/ccsw-providers.json`
+- **配置模板**: `ccsw-providers.template.json`
 
 ## 💡 高级技巧
 
 ### 1. 配置多个 API Key
-在 `config.json` 中为每个供应商配置多个 API Key，方便快速切换：
+在 `ccsw-providers.json` 中为每个供应商配置多个 API Key，方便快速切换：
 
 ```json
 {
@@ -211,15 +211,15 @@ ccsw
 ```
 
 ### 2. 多环境配置
-可以在 `~/.ccsw/` 目录下创建不同环境的配置文件：
+可以在 `~/.claude/` 目录下创建不同环境的配置文件：
 
 ```bash
 # 创建不同环境配置
-cp ~/.ccsw/config.json ~/.ccsw/config-work.json
-cp ~/.ccsw/config.json ~/.ccsw/config-personal.json
+cp ~/.claude/ccsw-providers.json ~/.claude/config-work.json
+cp ~/.claude/ccsw-providers.json ~/.claude/config-personal.json
 
 # 切换配置（手动）
-ln -sf ~/.ccsw/config-work.json ~/.ccsw/config.json
+ln -sf ~/.claude/config-work.json ~/.claude/ccsw-providers.json
 ```
 
 ### 3. 模型广场使用
@@ -246,7 +246,7 @@ claude-code-switch/
 ├── lib/
 │   ├── config-loader.js    # 配置加载器
 │   └── env-exporter.js     # 环境变量导出器
-├── config.template.json    # 配置模板
+├── ccsw-providers.template.json    # 配置模板
 ├── package.json
 └── README.md
 ```
