@@ -225,10 +225,13 @@ class AISwitchCLI {
 
       await this.saveConfig();
       console.log(chalk.green(`✓ 已切换到供应商: ${provider.name}`));
+      
+      // 供应商变更后，自动弹出模型选择
+      await this.selectModelAfterProviderChange();
+    } else {
+      // 如果供应商没有变更，继续正常流程
+      await this.continueFlow();
     }
-
-    // 继续选择流程
-    await this.continueFlow();
   }
 
   /**
@@ -308,6 +311,75 @@ class AISwitchCLI {
   }
 
   /**
+   * 供应商变更后选择模型
+   */
+  async selectModelAfterProviderChange() {
+    const providerId = this.config.current.provider;
+    const provider = this.config.providers[providerId];
+
+    // 检查供应商是否存在
+    if (!provider) {
+      console.log(chalk.red('❌ 当前供应商不存在'));
+      await this.startInteractiveSelection();
+      return;
+    }
+
+    // 检查是否有可用的模型
+    if (!provider.models || provider.models.length === 0) {
+      console.log(chalk.red('❌ 当前供应商没有可用模型，请先配置模型列表'));
+      await this.startInteractiveSelection();
+      return;
+    }
+
+    // 过滤有效的模型名称
+    const validModels = provider.models.filter(model =>
+      model && typeof model === 'string' && model.trim() !== ''
+    );
+
+    if (validModels.length === 0) {
+      console.log(chalk.red('❌ 当前供应商没有有效的模型配置'));
+      await this.startInteractiveSelection();
+      return;
+    }
+
+    const choices = validModels.map(model => ({
+      title: String(model),
+      value: String(model)
+    }));
+
+    let response;
+    try {
+      response = await prompts({
+        type: 'select',
+        name: 'model',
+        message: '选择模型:',
+        choices,
+        initial: validModels.findIndex(model => model === this.config.current.model)
+      });
+    } catch (error) {
+      console.error(chalk.red('❌ 选择模型出错:'), error.message);
+      await this.startInteractiveSelection();
+      return;
+    }
+
+    if (!response.model) {
+      await this.startInteractiveSelection();
+      return;
+    }
+
+    const model = response.model;
+
+    if (model !== this.config.current.model) {
+      this.config.current.model = model;
+      await this.saveConfig();
+      console.log(chalk.green(`✓ 已切换到模型: ${model}`));
+    }
+
+    // 模型选择后，自动弹出 API Key 选择
+    await this.selectApiKeyAfterModelChange();
+  }
+
+  /**
    * 选择密钥
    */
   async selectApiKey() {
@@ -383,6 +455,82 @@ class AISwitchCLI {
   }
 
   /**
+   * 模型变更后选择 API Key
+   */
+  async selectApiKeyAfterModelChange() {
+    const providerId = this.config.current.provider;
+    const provider = this.config.providers[providerId];
+
+    // 检查供应商是否存在
+    if (!provider) {
+      console.log(chalk.red('❌ 当前供应商不存在'));
+      await this.startInteractiveSelection();
+      return;
+    }
+
+    // 检查是否有可用的 API Key
+    if (!provider.apiKeys || provider.apiKeys.length === 0) {
+      console.log(chalk.red('❌ 当前供应商没有可用 API Key，请先配置 API Key'));
+      await this.startInteractiveSelection();
+      return;
+    }
+
+    // 检查当前配置的 API Key 索引是否有效
+    if (this.config.current.apiKeyIndex >= provider.apiKeys.length) {
+      console.log(chalk.yellow(`⚠️  当前配置的 API Key 索引超出范围，将为您重置到第一个可用 API Key`));
+      this.config.current.apiKeyIndex = 0;
+      await this.saveConfig();
+    }
+
+    // 过滤有效的 API Key
+    const validApiKeys = provider.apiKeys.filter((apiKey) =>
+      apiKey && apiKey.name && apiKey.key
+    );
+
+    if (validApiKeys.length === 0) {
+      console.log(chalk.red('❌ 当前供应商没有有效的 API Key 配置'));
+      await this.startInteractiveSelection();
+      return;
+    }
+
+    const choices = validApiKeys.map((apiKey) => ({
+      title: `${String(apiKey.name || '未知')} (${this.configLoader.maskApiKey(String(apiKey.key || 'sk-xxxx'))})`,
+      value: provider.apiKeys.indexOf(apiKey)
+    }));
+
+    let response;
+    try {
+      response = await prompts({
+        type: 'select',
+        name: 'apiKeyIndex',
+        message: '选择密钥:',
+        choices,
+        initial: this.config.current.apiKeyIndex
+      });
+    } catch (error) {
+      console.error(chalk.red('❌ 选择密钥 出错:'), error.message);
+      await this.startInteractiveSelection();
+      return;
+    }
+
+    if (response.apiKeyIndex === undefined) {
+      await this.startInteractiveSelection();
+      return;
+    }
+
+    const apiKeyIndex = response.apiKeyIndex;
+
+    if (apiKeyIndex !== this.config.current.apiKeyIndex) {
+      this.config.current.apiKeyIndex = apiKeyIndex;
+      await this.saveConfig();
+      console.log(chalk.green(`✓ 已切换到 API Key: ${provider.apiKeys[apiKeyIndex].name}`));
+    }
+
+    // 完成自动流程后，显示当前配置并询问是否继续
+    await this.continueFlowAfterAutoSelection();
+  }
+
+  /**
    * 继续选择流程
    */
   async continueFlow() {
@@ -395,6 +543,34 @@ class AISwitchCLI {
         type: 'confirm',
         name: 'continueSelection',
         message: '是否继续修改配置?',
+        initial: false
+      });
+    } catch (error) {
+      console.error(chalk.red('❌ 确认对话框出错:'), error.message);
+      await this.startInteractiveSelection();
+      return;
+    }
+
+    if (response.continueSelection) {
+      await this.startInteractiveSelection();
+    } else {
+      await this.writeToGlobalZshrcAndSource();
+    }
+  }
+
+  /**
+   * 自动选择流程完成后继续
+   */
+  async continueFlowAfterAutoSelection() {
+    console.log(chalk.gray('\n---'));
+    this.displayCurrentConfig();
+
+    let response;
+    try {
+      response = await prompts({
+        type: 'confirm',
+        name: 'continueSelection',
+        message: '配置已完成，是否继续修改配置?',
         initial: false
       });
     } catch (error) {
@@ -574,17 +750,17 @@ if (args.includes('--help') || args.includes('-h')) {
 🤖 AI 模型切换工具
 
 用法:
-  ccsw [选项]
+  ccs [选项]
 
 选项:
   -h, --help     显示帮助信息
   -v, --version  显示版本信息
 
 示例:
-  ccsw        # 启动交互式配置
+  ccs        # 启动交互式配置
 
 配置文件位置:
-  - ~/.claude/ccsw-providers.json
+  - ~/.claude/ccs-providers.json
 
 更多信息请访问: https://github.com/your-repo/claude-code-switch
   `);

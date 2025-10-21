@@ -1,4 +1,4 @@
-# 🚀 ccsw - AI 模型切换 CLI 工具
+# 🚀 ccs - AI 模型切换 CLI 工具
 
 一个用于快速切换不同 AI 供应商和模型的命令行工具，支持直接写入 `~/.zshrc` 并自动复制生效命令到剪切板。
 
@@ -31,10 +31,10 @@ npm link
 首次运行会自动创建配置文件模板：
 
 ```bash
-ccsw
+ccs
 ```
 
-然后编辑 `~/.claude/ccsw-providers.json` 文件，添加你的真实 API Keys：
+然后编辑 `~/.claude/ccs-providers.json` 文件，添加你的真实 API Keys：
 
 ```json
 {
@@ -72,7 +72,7 @@ ccsw
 
 ```bash
 # 启动 CLI
-ccsw
+ccs
 ```
 
 ### 4. 交互式选择
@@ -111,13 +111,13 @@ ccsw
 配置会写入到 `~/.zshrc`，格式如下：
 
 ```bash
-# AI 模型配置 - 由 ccsw 命令自动生成
-# ==== ccsw start ====
+# AI 模型配置 - 由 ccs 命令自动生成
+# ==== ccs start ====
 export ANTHROPIC_BASE_URL="https://open.bigmodel.cn/api/anthropic"
 export ANTHROPIC_AUTH_TOKEN="your-api-key"
 export ANTHROPIC_MODEL="glm-4.6"
 # 配置时间: 2025/10/20 18:30:45
-# ==== ccsw end ====
+# ==== ccs end ====
 ```
 
 ## 🏢 支持的供应商
@@ -157,7 +157,7 @@ export ANTHROPIC_MODEL="glm-4.6"
 ### 基本使用
 ```bash
 # 1. 启动 CLI
-ccsw
+ccs
 
 # 2. 选择配置（交互式）
 # - 选择供应商
@@ -176,26 +176,26 @@ claude
 
 ### 快速切换
 ```bash
-ccsw  # 选择新配置
+ccs  # 选择新配置
 # 粘贴执行 source ~/.zshrc
 claude  # 直接使用
 ```
 
 ### 查看当前配置
 ```bash
-ccsw
+ccs
 # 选择 "📖 查看 ~/.zshrc 配置"
 ```
 
 ## 📁 配置文件位置
 
-- **配置文件**: `~/.claude/ccsw-providers.json`
-- **配置模板**: `ccsw-providers.template.json`
+- **配置文件**: `~/.claude/ccs-providers.json`
+- **配置模板**: `ccs.template.json`
 
 ## 💡 高级技巧
 
 ### 1. 配置多个 API Key
-在 `ccsw-providers.json` 中为每个供应商配置多个 API Key，方便快速切换：
+在 `ccs-providers.json` 中为每个供应商配置多个 API Key，方便快速切换：
 
 ```json
 {
@@ -215,11 +215,11 @@ ccsw
 
 ```bash
 # 创建不同环境配置
-cp ~/.claude/ccsw-providers.json ~/.claude/config-work.json
-cp ~/.claude/ccsw-providers.json ~/.claude/config-personal.json
+cp ~/.claude/ccs-providers.json ~/.claude/config-work.json
+cp ~/.claude/ccs-providers.json ~/.claude/config-personal.json
 
 # 切换配置（手动）
-ln -sf ~/.claude/config-work.json ~/.claude/ccsw-providers.json
+ln -sf ~/.claude/config-work.json ~/.claude/ccs-providers.json
 ```
 
 ### 3. 模型广场使用
@@ -230,9 +230,9 @@ ln -sf ~/.claude/config-work.json ~/.claude/ccsw-providers.json
 ## 🛠️ 命令选项
 
 ```bash
-ccsw              # 启动交互式配置
-ccsw --help        # 显示帮助信息
-ccsw --version     # 显示版本信息
+ccs              # 启动交互式配置
+ccs --help        # 显示帮助信息
+ccs --version     # 显示版本信息
 ```
 
 ## 🛠️ 开发
@@ -246,7 +246,7 @@ claude-code-switch/
 ├── lib/
 │   ├── config-loader.js    # 配置加载器
 │   └── env-exporter.js     # 环境变量导出器
-├── ccsw-providers.template.json    # 配置模板
+├── ccs.template.json    # 配置模板
 ├── package.json
 └── README.md
 ```
@@ -273,7 +273,7 @@ npm link
 ## 🎉 完成！
 
 现在你可以：
-- 使用 `ccsw` 快速切换 AI 供应商和模型
+- 使用 `ccs` 快速切换 AI 供应商和模型
 - 查看模型广场链接，方便挑选新模型
 - 配置写入后自动复制生效命令到剪切板
 - 享受高效的 AI 模型切换体验！
