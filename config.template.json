@@ -1,0 +1,90 @@
+{
+  "providers": {
+    "siliconflow": {
+      "name": "SiliconFlow",
+      "baseUrl": "https://api.siliconflow.cn/",
+      "modelHubUrl": "https://cloud.siliconflow.cn/me/models",
+      "models": [
+        "zai-org/GLM-4.6",
+        "zai-org/GLM-4.5",
+        "moonshotai/Kimi-K2-Instruct-0905"
+      ],
+      "apiKeys": [
+        {
+          "name": "账号 1 密钥",
+          "key": "sk-xxx"
+        },
+        {
+          "name": "账号 2 密钥",
+          "key": "sk-yyy"
+        }
+      ]
+    },
+    "bigmodel": {
+      "name": "BigModel",
+      "baseUrl": "https://open.bigmodel.cn/api/anthropic",
+      "modelHubUrl": "https://bigmodel.cn/console/modelcenter/square",
+      "models": [
+        "glm-4.6",
+        "glm-4.5-air",
+        "glm-4.5-flash"
+      ],
+      "apiKeys": [
+        {
+          "name": "智谱测试密钥",
+          "key": "c939cbad4210432f87bd4f19f40eb288.xx"
+        }
+      ]
+    },
+      "modelscope": {
+      "name": "ModelScope",
+      "baseUrl": "https://api-inference.modelscope.cn",
+      "modelHubUrl": "https://modelscope.cn/models",
+      "models": [
+        "ZhipuAI/GLM-4.6",
+        "deepseek-ai/DeepSeek-V3.2-Exp"
+      ],
+      "apiKeys": [
+        {
+          "name": "ModelScope 密钥",
+          "key": "ms-xyz"
+        }
+      ]
+    },
+      "DeepSeek": {
+      "name": "DeepSeek",
+      "baseUrl": "https://api.deepseek.com/anthropic",
+      "modelHubUrl": "https://platform.deepseek.com/",
+      "models": [
+        "deepseek-chat",
+        "deepseek-chat"
+      ],
+      "apiKeys": [
+        {
+          "name": "DeepSeek 密钥",
+          "key": "ds-xyz"
+        }
+      ]
+    },
+    "dashscope": {
+      "name": "DashScope",
+      "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "modelHubUrl": "https://bailian.console.aliyun.com/?tab=model#/model-market/all",
+      "models": [
+        "qwen3-coder-plus",
+        "qwen3-coder-flash"
+      ],
+      "apiKeys": [
+        {
+          "name": "阿里云密钥",
+          "key": "sk-zzz"
+        }
+      ]
+    }
+  },
+  "current": {
+    "provider": "bigmodel",
+    "model": "glm-4.6",
+    "apiKeyIndex": 0
+  }
+}
