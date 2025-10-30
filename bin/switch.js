@@ -119,6 +119,7 @@ class AISwitchCLI {
       { title: '──────────────', disabled: true },
       { title: '✅ 写入配置', value: 'write_and_source', disabled: false },
       { title: '📖 查看配置', value: 'read_global', disabled: false },
+      { title: '🔑 验证密钥', value: 'validate_keys', disabled: false },
       { title: '❌ 退出', value: 'exit', disabled: false }
     ].filter(choice => choice && choice.title && choice.value);
 
@@ -161,6 +162,9 @@ class AISwitchCLI {
         break;
       case 'read_global':
         await this.readFromGlobalZshrc();
+        break;
+      case 'validate_keys':
+        await this.validateAllApiKeys();
         break;
       case 'exit':
         console.log(chalk.green('\n👋 再见！'));
@@ -679,6 +683,164 @@ class AISwitchCLI {
     } catch (error) {
       console.error(chalk.red(`❌ 选择操作出错:`), error.message);
       return null;
+    }
+  }
+
+  /**
+   * 验证所有API Key
+   */
+  async validateAllApiKeys() {
+    console.log(chalk.yellow.bold('\n🔑 验证所有API密钥...\n'));
+    console.log(chalk.gray('━'.repeat(60)));
+
+    const providers = Object.entries(this.config.providers);
+    const results = [];
+
+    for (const [providerId, provider] of providers) {
+      if (!provider || !provider.apiKeys || provider.apiKeys.length === 0) {
+        continue;
+      }
+
+      const providerName = provider.name || providerId;
+      console.log(`\n📦 ${providerName} (${providerId})`);
+
+      for (const apiKey of provider.apiKeys) {
+        const apiKeyName = apiKey.name || '未命名';
+        const apiKeyValue = apiKey.key;
+
+        // 检查空密钥
+        if (!apiKeyValue || apiKeyValue.trim() === '') {
+          results.push({
+            provider: providerName,
+            apiKeyName: apiKeyName,
+            status: '⭕️',
+            error: '空密钥'
+          });
+          console.log(`   ⭕️ ${chalk.gray(apiKeyName)} (无密钥) - 空密钥`);
+          continue;
+        }
+
+        // 跳过默认/示例密钥
+        if (apiKeyValue === 'API_KEY' || apiKeyValue.length < 15) {
+          results.push({
+            provider: providerName,
+            apiKeyName: apiKeyName,
+            status: '⏭️',
+            error: '示例密钥'
+          });
+          console.log(`   ⏭️  ${chalk.yellow(apiKeyName)} (${this.configLoader.maskApiKey(apiKeyValue)}) - 示例密钥`);
+          continue;
+        }
+
+        // 验证API Key
+        const isValid = await this.validateSingleApiKey(provider, apiKeyValue);
+        const logMsg = `${apiKeyName} (${this.configLoader.maskApiKey(apiKeyValue)})`
+        if (isValid) {
+          results.push({
+            provider: providerName,
+            apiKeyName: apiKeyName,
+            status: '✅',
+            error: null
+          });
+          console.log(`   ✅ ${chalk.green(logMsg)} `);
+        } else {
+          results.push({
+            provider: providerName,
+            apiKeyName: apiKeyName,
+            status: '❌',
+            error: '验证失败'
+          });
+          console.log(`   ❌ ${chalk.red(logMsg)}`);
+        }
+      }
+    }
+
+    // 显示总结
+    console.log(chalk.gray('\n' + '━'.repeat(60)));
+    console.log(chalk.yellow.bold(`\n📊 验证结果统计【总计: ${results.length}】:`));
+
+    const validCount = results.filter(r => r.status === '✅').length;
+    const invalidCount = results.filter(r => r.status === '❌').length;
+    const skippedCount = results.filter(r => r.status === '⏭️').length;
+    const emptyCount = results.filter(r => r.status === '⭕️').length;
+
+    console.log(chalk.green(`✅ 有效: ${validCount}`));
+    console.log(chalk.red(`❌ 无效: ${invalidCount}`));
+    console.log(chalk.yellow(`⏭️  跳过: ${skippedCount} (示例密钥)`));
+    console.log(chalk.gray(`⭕️ 空密钥: ${emptyCount}`));
+
+    await this.continueFlow();
+  }
+
+  /**
+   * 验证单个API Key
+   * @param {object} provider - 供应商配置
+   * @param {string} apiKey - API Key
+   * @returns {Promise<boolean>} - 是否有效
+   */
+  async validateSingleApiKey(provider, apiKey) {
+    try {
+      // 获取第一个可用模型
+      const models = provider.models;
+      if (!models || models.length === 0) {
+        return false;
+      }
+
+      const model = models[0];
+      const baseUrl = provider.baseUrl;
+
+      // 构建请求
+      const https = require('https');
+      const url = new URL(baseUrl + 'messages');
+
+      const postData = JSON.stringify({
+        model: model,
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'hi' }]
+      });
+
+      const options = {
+        hostname: url.hostname,
+        port: url.port || 443,
+        path: url.pathname,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData),
+          'Authorization': `Bearer ${apiKey}`,
+          'anthropic-version': '2023-06-01'
+        },
+        timeout: 10000 // 10秒超时
+      };
+
+      return new Promise((resolve) => {
+        const req = https.request(options, (res) => {
+          // 只要不是401/403认证错误，就认为密钥有效
+          // 其他错误可能是模型不支持等，但密钥本身是有效的
+          if (res.statusCode === 200 || res.statusCode === 400) {
+            resolve(true);
+          } else if (res.statusCode === 401 || res.statusCode === 403) {
+            resolve(false);
+          } else {
+            // 其他状态码也认为密钥有效（可能是模型不支持等）
+            resolve(true);
+          }
+        });
+
+        req.on('error', () => {
+          resolve(false);
+        });
+
+        req.on('timeout', () => {
+          req.destroy();
+          resolve(false);
+        });
+
+        req.write(postData);
+        req.end();
+      });
+    } catch (error) {
+      return false;
     }
   }
 }

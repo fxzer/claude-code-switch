@@ -12,11 +12,11 @@
       "apiKeys": [
         {
           "name": "账号 1 密钥",
-          "key": "sk-xxx"
+          "key": "API_KEY"
         },
         {
           "name": "账号 2 密钥",
-          "key": "sk-yyy"
+          "key": "API_KEY"
         }
       ]
     },
@@ -47,7 +47,7 @@
       "apiKeys": [
         {
           "name": "ModelScope 密钥",
-          "key": "ms-xyz"
+          "key": "API_KEY"
         }
       ]
     },
@@ -62,7 +62,7 @@
       "apiKeys": [
         {
           "name": "DeepSeek 密钥",
-          "key": "ds-xyz"
+          "key": "API_KEY"
         }
       ]
     },
@@ -77,7 +77,7 @@
       "apiKeys": [
         {
           "name": "DeepSeek 密钥",
-          "key": "ds-xyz"
+          "key": "API_KEY"
         }
       ]
     },
@@ -91,7 +91,7 @@
       "apiKeys": [
         {
           "name": "MiniMax 密钥",
-          "key": "xxx"
+          "key": "API_KEY"
         }
       ]
     },
@@ -106,7 +106,7 @@
       "apiKeys": [
         {
           "name": "阿里云密钥",
-          "key": "sk-zzz"
+          "key": "API_KEY"
         }
       ]
     }
