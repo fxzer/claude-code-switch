@@ -109,10 +109,13 @@ class AISwitchCLI {
   async startInteractiveSelection() {
     console.log(chalk.yellow.bold('\n🔄 切换配置:'));
 
+    // 获取UI配置
+    const uiSettings = this.configLoader.getUISettings();
+
     const choices = [
-      { title: '🏢 选择供应商', value: 'provider', disabled: false },
-      { title: '🤖 选择模型', value: 'model', disabled: false },
-      { title: '🔑 选择密钥', value: 'apiKey', disabled: false },
+      { title: uiSettings.ui.menuOptions.selectProvider, value: 'provider', disabled: false },
+      { title: uiSettings.ui.menuOptions.selectModel, value: 'model', disabled: false },
+      { title: uiSettings.ui.menuOptions.selectApiKey, value: 'apiKey', disabled: false },
       { title: '──────────────', disabled: true },
       { title: '✅ 写入配置', value: 'write_and_source', disabled: false },
       { title: '📖 查看配置', value: 'read_global', disabled: false },
@@ -182,12 +185,15 @@ class AISwitchCLI {
       value: String(id)
     }));
 
+    // 获取UI配置
+    const uiSettings = this.configLoader.getUISettings();
+
     let response;
     try {
       response = await prompts({
         type: 'select',
         name: 'providerId',
-        message: '选择供应商:',
+        message: uiSettings.ui.prompts.selectProvider,
         choices,
         initial: validProviders.findIndex(([id]) => id === this.config.current.provider)
       });
@@ -285,7 +291,9 @@ class AISwitchCLI {
       value: String(model)
     }));
 
-    const response = await this.promptUser('选择模型:', choices, validModels.findIndex(model => model === this.config.current.model));
+    // 获取UI配置
+    const uiSettings = this.configLoader.getUISettings();
+    const response = await this.promptUser(uiSettings.ui.prompts.selectModel, choices, validModels.findIndex(model => model === this.config.current.model));
     if (!response) {
       await this.startInteractiveSelection();
       return;
@@ -364,7 +372,9 @@ class AISwitchCLI {
       value: provider.apiKeys.indexOf(apiKey)
     }));
 
-    const response = await this.promptUser('选择密钥:', choices, this.config.current.apiKeyIndex, 'apiKeyIndex');
+    // 获取UI配置
+    const uiSettings = this.configLoader.getUISettings();
+    const response = await this.promptUser(uiSettings.ui.prompts.selectApiKey, choices, this.config.current.apiKeyIndex, 'apiKeyIndex');
     if (response === null || response === undefined) {
       await this.startInteractiveSelection();
       return;
@@ -478,7 +488,7 @@ class AISwitchCLI {
       }
 
       // 写入 ~/.zshrc
-      const result = await this.envExporter.writeToGlobalZshrc(envVars);
+      const result = await this.envExporter.writeToGlobalZshrc(envVars, 'zh-CN');
 
       if (result.success) {
         console.log(chalk.green(`✅ ${result.message}`));
