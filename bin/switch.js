@@ -238,19 +238,27 @@ class AISwitchCLI {
    * 选择模型
    */
   async selectModel() {
+    await this.selectGenericModel(false);
+  }
+
+  /**
+   * 选择模型（供应商变更后自动调用）
+   */
+  async selectModelAfterProviderChange() {
+    await this.selectGenericModel(true);
+  }
+
+  /**
+   * 通用的模型选择逻辑
+   * @param {boolean} isAfterProviderChange - 是否是供应商变更后调用
+   */
+  async selectGenericModel(isAfterProviderChange = false) {
     const providerId = this.config.current.provider;
     const provider = this.config.providers[providerId];
 
-    // 检查供应商是否存在
-    if (!provider) {
-      console.log(chalk.red('❌ 当前供应商不存在，请先选择供应商'));
-      await this.startInteractiveSelection();
-      return;
-    }
-
-    // 检查是否有可用的模型
-    if (!provider.models || provider.models.length === 0) {
-      console.log(chalk.red('❌ 当前供应商没有可用模型，请先配置模型列表'));
+    // 验证供应商
+    const validation = await this.validateProvider(providerId, '模型');
+    if (!validation.isValid) {
       await this.startInteractiveSelection();
       return;
     }
@@ -264,9 +272,7 @@ class AISwitchCLI {
     }
 
     // 过滤有效的模型名称
-    const validModels = provider.models.filter(model =>
-      model && typeof model === 'string' && model.trim() !== ''
-    );
+    const validModels = this.filterValidItems(provider.models);
 
     if (validModels.length === 0) {
       console.log(chalk.red('❌ 当前供应商没有有效的模型配置'));
@@ -279,191 +285,53 @@ class AISwitchCLI {
       value: String(model)
     }));
 
-    let response;
-    try {
-      response = await prompts({
-        type: 'select',
-        name: 'model',
-        message: '选择模型:',
-        choices,
-        initial: validModels.findIndex(model => model === this.config.current.model)
-      });
-    } catch (error) {
-      console.error(chalk.red('❌ 选择模型出错:'), error.message);
+    const response = await this.promptUser('选择模型:', choices, validModels.findIndex(model => model === this.config.current.model));
+    if (!response) {
       await this.startInteractiveSelection();
       return;
     }
 
-    if (!response.model) {
-      await this.startInteractiveSelection();
-      return;
-    }
-
-    const model = response.model;
-
+    const model = response;
     if (model !== this.config.current.model) {
       this.config.current.model = model;
       await this.saveConfig();
       console.log(chalk.green(`✓ 已切换到模型: ${model}`));
     }
 
-    await this.continueFlow();
+    // 根据调用上下文决定后续流程
+    if (isAfterProviderChange) {
+      await this.selectApiKeyAfterModelChange();
+    } else {
+      await this.continueFlow();
+    }
   }
 
-  /**
-   * 供应商变更后选择模型
-   */
-  async selectModelAfterProviderChange() {
-    const providerId = this.config.current.provider;
-    const provider = this.config.providers[providerId];
-
-    // 检查供应商是否存在
-    if (!provider) {
-      console.log(chalk.red('❌ 当前供应商不存在'));
-      await this.startInteractiveSelection();
-      return;
-    }
-
-    // 检查是否有可用的模型
-    if (!provider.models || provider.models.length === 0) {
-      console.log(chalk.red('❌ 当前供应商没有可用模型，请先配置模型列表'));
-      await this.startInteractiveSelection();
-      return;
-    }
-
-    // 过滤有效的模型名称
-    const validModels = provider.models.filter(model =>
-      model && typeof model === 'string' && model.trim() !== ''
-    );
-
-    if (validModels.length === 0) {
-      console.log(chalk.red('❌ 当前供应商没有有效的模型配置'));
-      await this.startInteractiveSelection();
-      return;
-    }
-
-    const choices = validModels.map(model => ({
-      title: String(model),
-      value: String(model)
-    }));
-
-    let response;
-    try {
-      response = await prompts({
-        type: 'select',
-        name: 'model',
-        message: '选择模型:',
-        choices,
-        initial: validModels.findIndex(model => model === this.config.current.model)
-      });
-    } catch (error) {
-      console.error(chalk.red('❌ 选择模型出错:'), error.message);
-      await this.startInteractiveSelection();
-      return;
-    }
-
-    if (!response.model) {
-      await this.startInteractiveSelection();
-      return;
-    }
-
-    const model = response.model;
-
-    if (model !== this.config.current.model) {
-      this.config.current.model = model;
-      await this.saveConfig();
-      console.log(chalk.green(`✓ 已切换到模型: ${model}`));
-    }
-
-    // 模型选择后，自动弹出 API Key 选择
-    await this.selectApiKeyAfterModelChange();
-  }
 
   /**
    * 选择密钥
    */
   async selectApiKey() {
-    const providerId = this.config.current.provider;
-    const provider = this.config.providers[providerId];
-
-    // 检查供应商是否存在
-    if (!provider) {
-      console.log(chalk.red('❌ 当前供应商不存在，请先选择供应商'));
-      await this.startInteractiveSelection();
-      return;
-    }
-
-    // 检查是否有可用的 API Key
-    if (!provider.apiKeys || provider.apiKeys.length === 0) {
-      console.log(chalk.red('❌ 当前供应商没有可用 API Key，请先配置 API Key'));
-      await this.startInteractiveSelection();
-      return;
-    }
-
-    // 检查当前配置的 API Key 索引是否有效
-    if (this.config.current.apiKeyIndex >= provider.apiKeys.length) {
-      console.log(chalk.yellow(`⚠️  当前配置的 API Key 索引超出范围，将为您重置到第一个可用 API Key`));
-      this.config.current.apiKeyIndex = 0;
-      await this.saveConfig();
-    }
-
-    // 过滤有效的 API Key
-    const validApiKeys = provider.apiKeys.filter((apiKey) =>
-      apiKey && apiKey.name && apiKey.key
-    );
-
-    if (validApiKeys.length === 0) {
-      console.log(chalk.red('❌ 当前供应商没有有效的 API Key 配置'));
-      await this.startInteractiveSelection();
-      return;
-    }
-
-    const choices = validApiKeys.map((apiKey) => ({
-      title: `${String(apiKey.name || '未知')} (${this.configLoader.maskApiKey(String(apiKey.key || 'sk-xxxx'))})`,
-      value: provider.apiKeys.indexOf(apiKey)
-    }));
-
-    let response;
-    try {
-      response = await prompts({
-        type: 'select',
-        name: 'apiKeyIndex',
-        message: '选择密钥:',
-        choices,
-        initial: this.config.current.apiKeyIndex
-      });
-    } catch (error) {
-      console.error(chalk.red('❌ 选择密钥 出错:'), error.message);
-      await this.startInteractiveSelection();
-      return;
-    }
-
-    if (response.apiKeyIndex === undefined) {
-      await this.startInteractiveSelection();
-      return;
-    }
-
-    const apiKeyIndex = response.apiKeyIndex;
-
-    if (apiKeyIndex !== this.config.current.apiKeyIndex) {
-      this.config.current.apiKeyIndex = apiKeyIndex;
-      await this.saveConfig();
-      console.log(chalk.green(`✓ 已切换到 API Key: ${provider.apiKeys[apiKeyIndex].name}`));
-    }
-
-    await this.continueFlow();
+    await this.selectGenericApiKey(false);
   }
 
   /**
-   * 模型变更后选择 API Key
+   * 模型变更后选择 API Key（自动调用）
    */
   async selectApiKeyAfterModelChange() {
+    await this.selectGenericApiKey(true);
+  }
+
+  /**
+   * 通用的 API Key 选择逻辑
+   * @param {boolean} isAfterModelChange - 是否是模型变更后调用
+   */
+  async selectGenericApiKey(isAfterModelChange = false) {
     const providerId = this.config.current.provider;
     const provider = this.config.providers[providerId];
 
-    // 检查供应商是否存在
-    if (!provider) {
-      console.log(chalk.red('❌ 当前供应商不存在'));
+    // 验证供应商
+    const validation = await this.validateProvider(providerId, 'API Key');
+    if (!validation.isValid) {
       await this.startInteractiveSelection();
       return;
     }
@@ -483,9 +351,7 @@ class AISwitchCLI {
     }
 
     // 过滤有效的 API Key
-    const validApiKeys = provider.apiKeys.filter((apiKey) =>
-      apiKey && apiKey.name && apiKey.key
-    );
+    const validApiKeys = this.filterValidApiKeys(provider.apiKeys);
 
     if (validApiKeys.length === 0) {
       console.log(chalk.red('❌ 当前供应商没有有效的 API Key 配置'));
@@ -498,36 +364,25 @@ class AISwitchCLI {
       value: provider.apiKeys.indexOf(apiKey)
     }));
 
-    let response;
-    try {
-      response = await prompts({
-        type: 'select',
-        name: 'apiKeyIndex',
-        message: '选择密钥:',
-        choices,
-        initial: this.config.current.apiKeyIndex
-      });
-    } catch (error) {
-      console.error(chalk.red('❌ 选择密钥 出错:'), error.message);
+    const response = await this.promptUser('选择密钥:', choices, this.config.current.apiKeyIndex, 'apiKeyIndex');
+    if (response === null || response === undefined) {
       await this.startInteractiveSelection();
       return;
     }
 
-    if (response.apiKeyIndex === undefined) {
-      await this.startInteractiveSelection();
-      return;
-    }
-
-    const apiKeyIndex = response.apiKeyIndex;
-
+    const apiKeyIndex = response;
     if (apiKeyIndex !== this.config.current.apiKeyIndex) {
       this.config.current.apiKeyIndex = apiKeyIndex;
       await this.saveConfig();
       console.log(chalk.green(`✓ 已切换到 API Key: ${provider.apiKeys[apiKeyIndex].name}`));
     }
 
-    // 完成自动流程后，显示当前配置并询问是否继续
-    await this.continueFlowAfterAutoSelection();
+    // 根据调用上下文决定后续流程
+    if (isAfterModelChange) {
+      await this.continueFlowAfterAutoSelection();
+    } else {
+      await this.continueFlow();
+    }
   }
 
   /**
@@ -738,6 +593,82 @@ class AISwitchCLI {
       await this.configLoader.saveConfig(this.config);
     } catch (error) {
       throw new Error(`保存配置失败: ${error.message}`);
+    }
+  }
+
+  /**
+   * 验证供应商是否存在
+   * @param {string} providerId - 供应商ID
+   * @param {string} context - 验证上下文（用于错误信息）
+   * @returns {object} - 验证结果 { isValid: boolean, provider?: object, error?: string }
+   */
+  async validateProvider(providerId, context = '配置') {
+    const provider = this.config.providers[providerId];
+
+    if (!provider) {
+      console.log(chalk.red(`❌ 当前供应商不存在，请先选择${context}`));
+      return { isValid: false };
+    }
+
+    return { isValid: true, provider };
+  }
+
+  /**
+   * 过滤有效的项目列表（用于模型名称等）
+   * @param {Array} items - 项目列表
+   * @returns {Array} - 过滤后的有效项目列表
+   */
+  filterValidItems(items) {
+    if (!Array.isArray(items)) {
+      return [];
+    }
+
+    return items.filter(item =>
+      item && typeof item === 'string' && item.trim() !== ''
+    );
+  }
+
+  /**
+   * 过滤有效的 API Key 列表
+   * @param {Array} apiKeys - API Key 列表
+   * @returns {Array} - 过滤后的有效 API Key 列表
+   */
+  filterValidApiKeys(apiKeys) {
+    if (!Array.isArray(apiKeys)) {
+      return [];
+    }
+
+    return apiKeys.filter((apiKey) =>
+      apiKey && apiKey.name && apiKey.key
+    );
+  }
+
+  /**
+   * 通用的用户选择提示
+   * @param {string} message - 提示信息
+   * @param {Array} choices - 选择项列表
+   * @param {number} initialIndex - 初始选择索引
+   * @param {string} responseKey - 响应键名（默认为 'value'）
+   * @returns {Promise} - 用户选择的值
+   */
+  async promptUser(message, choices, initialIndex = 0, responseKey = 'value') {
+    try {
+      const response = await prompts({
+        type: 'select',
+        name: responseKey,
+        message,
+        choices,
+        initial: initialIndex
+      });
+
+      if (!response[responseKey]) {
+        return null;
+      }
+
+      return response[responseKey];
+    } catch (error) {
+      console.error(chalk.red(`❌ 选择操作出错:`), error.message);
+      return null;
     }
   }
 }

@@ -57,7 +57,7 @@
       "modelHubUrl": "https://platform.deepseek.com/",
       "models": [
         "deepseek-chat",
-        "deepseek-chat"
+        "deepseek-reasoner"
       ],
       "apiKeys": [
         {
@@ -78,6 +78,20 @@
         {
           "name": "DeepSeek 密钥",
           "key": "ds-xyz"
+        }
+      ]
+    },
+    "minmax": {
+      "name": "MinMax",
+      "baseUrl": "https://api.minimax.io/anthropic",
+      "modelHubUrl": "https://minimaxi.com/",
+      "models": [
+        "MiniMax-M2"
+      ],
+      "apiKeys": [
+        {
+          "name": "MiniMax 密钥",
+          "key": "xxx"
         }
       ]
     },
