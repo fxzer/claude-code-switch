@@ -4,9 +4,10 @@
 
 ## ✨ 特性
 
-- 🎯 **一键切换**：支持多个 AI 供应商（SiliconFlow、BigModel、DashScope、ModelScope、DeepSeek）
+- 🎯 **一键切换**：支持多个 AI 供应商（SiliconFlow、BigModel、DashScope、ModelScope、DeepSeek、MoonShot、MinMax）
 - 🤖 **多模型支持**：每个供应商支持多个模型选择
 - 🔑 **多 API Key**：支持配置多个 API Key 并快速切换
+- 🔍 **验证密钥**：一键验证所有 API Key 的有效性，快速识别无效密钥
 - 🏪 **模型广场**：显示各供应商模型广场链接，方便挑选新模型
 - ⚡️ **快速生效**：写入配置后自动复制 `source ~/.zshrc` 到剪切板
 - 🎨 **友好界面**：交互式命令行界面，操作简单直观
@@ -94,8 +95,10 @@ ccs
 ❯ 🏢 选择供应商
   🤖 选择模型
   🔑 选择 API Key
+  ──────────────
   ✅ 写入配置并生效
   📖 查看 ~/.zshrc 配置
+  🔍 验证密钥
   ❌ 退出
 ```
 
@@ -149,8 +152,20 @@ export ANTHROPIC_MODEL="glm-4.6"
 ### DeepSeek
 - **Base URL**: `https://api.deepseek.com/anthropic`
 - **模型广场**: https://platform.deepseek.com/
-- **热门模型**: deepseek-chat、deepseek-coder 等
+- **热门模型**: deepseek-chat、deepseek-reasoner 等
 - **获取 API Key**: https://platform.deepseek.com/
+
+### MoonShot（月之暗面）
+- **Base URL**: `https://api.moonshot.ai/anthropic`
+- **模型广场**: https://platform.moonshot.cn/docs/introduction#模型列表
+- **热门模型**: kimi-k2-0905-preview、kimi-k2-turbo-preview 等
+- **获取 API Key**: https://platform.moonshot.cn
+
+### MinMax（海螺AI）
+- **Base URL**: `https://api.minimax.io/anthropic`
+- **模型广场**: https://minimaxi.com/
+- **热门模型**: MiniMax-M2 等
+- **获取 API Key**: https://minimaxi.com/
 
 ## 🎯 使用流程
 
@@ -180,6 +195,37 @@ ccs  # 选择新配置
 # 粘贴执行 source ~/.zshrc
 claude  # 直接使用
 ```
+
+### 验证 API Key
+```bash
+ccs
+# 选择 "🔍 验证密钥"
+```
+
+验证过程示例：
+```
+🔑 验证所有API密钥...
+────────────────────────────────────────────────────────────
+
+📦 SiliconFlow (siliconflow)
+  ✅ 账号 1 密钥 (sk-xxx...)
+  ⏭️ 账号 2 密钥 (sk-yyy...) - 示例密钥
+
+📦 BigModel (bigmodel)
+  🚫 账号 3 密钥 (无密钥) - 空密钥
+
+📊 验证结果统计【总计: 3】:
+  ✅ 有效: 1
+  ❌ 无效: 0
+  ⏭️ 跳过: 1 (示例密钥)
+  🚫 空密钥: 1
+```
+
+**状态说明**：
+- ✅ **有效** - API Key 可用，可以正常使用
+- ❌ **无效** - API Key 无效，认证失败或网络错误
+- ⏭️ **跳过** - 示例密钥，自动跳过不验证
+- 🚫 **空密钥** - 未配置密钥，需要填写真实密钥
 
 ### 查看当前配置
 ```bash
@@ -274,6 +320,7 @@ npm link
 
 现在你可以：
 - 使用 `ccs` 快速切换 AI 供应商和模型
+- 🔍 **一键验证所有 API Key**，快速识别无效密钥
 - 查看模型广场链接，方便挑选新模型
 - 配置写入后自动复制生效命令到剪切板
 - 享受高效的 AI 模型切换体验！
