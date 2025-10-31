@@ -17,7 +17,7 @@
 ### 1. 安装
 
 ```bash
-npm install fxzer/claude-code-switch
+npm install @fxzer/claude-code-switch
 ```
 
 ### 2. 配置
