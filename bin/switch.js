@@ -9,8 +9,19 @@ const chalk = require('chalk');
 const path = require('path');
 const readline = require('readline');
 const { spawn } = require('child_process');
+const os = require('os');
 const ConfigLoader = require('../lib/config-loader');
 const EnvExporter = require('../lib/env-exporter');
+
+/**
+ * 展开路径中的 ~
+ */
+function expandHome(filepath) {
+  if (filepath[0] === '~') {
+    return path.join(os.homedir(), filepath.slice(1));
+  }
+  return filepath;
+}
 
 class AISwitchCLI {
   constructor() {
@@ -26,7 +37,7 @@ class AISwitchCLI {
     return new Promise((resolve, reject) => {
       const rl = readline.createInterface({
         input: process.stdin,
-        output: process.stdout
+        output: process.stdout,
       });
 
       console.log(chalk.cyan(`\n${message}`));
@@ -36,7 +47,7 @@ class AISwitchCLI {
         console.log(`${marker} ${index + 1}. ${choice.title}${disabled}`);
       });
 
-      rl.question(chalk.cyan('\n请输入选项数字: '), (answer) => {
+      rl.question(chalk.cyan('\n请输入选项数字: '), answer => {
         const index = parseInt(answer) - 1;
         if (index >= 0 && index < choices.length && !choices[index].disabled) {
           resolve({ value: choices[index].value });
@@ -64,7 +75,6 @@ class AISwitchCLI {
 
       // 开始交互式选择
       await this.startInteractiveSelection();
-
     } catch (error) {
       console.error(chalk.red.bold('\n❌ 错误:'), error.message);
       process.exit(1);
@@ -90,11 +100,25 @@ class AISwitchCLI {
     const current = this.configLoader.getCurrentConfig(this.config);
 
     console.log(chalk.yellow.bold('\n📋 当前配置:'));
-    console.log(chalk.white(`  供应商: ${current.provider.name || '未知'} (${chalk.gray(current.provider.id || '未知')})`));
+    console.log(
+      chalk.white(
+        `  供应商: ${current.provider.name || '未知'} (${chalk.gray(
+          current.provider.id || '未知'
+        )})`
+      )
+    );
     console.log(chalk.white(`  模型:   ${current.model || '未知'}`));
-    console.log(chalk.white(`  API Key: ${current.apiKey.name || '未知'} (${chalk.gray(current.apiKey.key || '未知')})`));
-    console.log(chalk.white(`  Base URL: ${current.provider.baseUrl || '未知'}`));
-    
+    console.log(
+      chalk.white(
+        `  API Key: ${current.apiKey.name || '未知'} (${chalk.gray(
+          current.apiKey.key || '未知'
+        )})`
+      )
+    );
+    console.log(
+      chalk.white(`  Base URL: ${current.provider.baseUrl || '未知'}`)
+    );
+
     // 显示模型广场链接
     if (current.provider.modelHubUrl) {
       console.log(chalk.white(`  模型广场: ${current.provider.modelHubUrl}`));
@@ -113,14 +137,26 @@ class AISwitchCLI {
     const uiSettings = this.configLoader.getUISettings();
 
     const choices = [
-      { title: uiSettings.ui.menuOptions.selectProvider, value: 'provider', disabled: false },
-      { title: uiSettings.ui.menuOptions.selectModel, value: 'model', disabled: false },
-      { title: uiSettings.ui.menuOptions.selectApiKey, value: 'apiKey', disabled: false },
+      {
+        title: uiSettings.ui.menuOptions.selectProvider,
+        value: 'provider',
+        disabled: false,
+      },
+      {
+        title: uiSettings.ui.menuOptions.selectModel,
+        value: 'model',
+        disabled: false,
+      },
+      {
+        title: uiSettings.ui.menuOptions.selectApiKey,
+        value: 'apiKey',
+        disabled: false,
+      },
       { title: '──────────────', disabled: true },
       { title: '✅ 写入配置', value: 'write_and_source', disabled: false },
-      { title: '📖 查看配置', value: 'read_global', disabled: false },
+      { title: '📖 查看配置', value: 'read_config', disabled: false },
       { title: '🔑 验证密钥', value: 'validate_keys', disabled: false },
-      { title: '❌ 退出', value: 'exit', disabled: false }
+      { title: '❌ 退出', value: 'exit', disabled: false },
     ].filter(choice => choice && choice.title && choice.value);
 
     let response;
@@ -129,10 +165,13 @@ class AISwitchCLI {
         type: 'select',
         name: 'action',
         message: '请选择操作:',
-        choices
+        choices,
       });
     } catch (error) {
-      console.error(chalk.red('❌ prompts 库出错，使用降级界面:'), error.message);
+      console.error(
+        chalk.red('❌ prompts 库出错，使用降级界面:'),
+        error.message
+      );
       try {
         response = await this.fallbackSelect('请选择操作:', choices);
         response = { action: response.value };
@@ -158,10 +197,10 @@ class AISwitchCLI {
         await this.selectApiKey();
         break;
       case 'write_and_source':
-        await this.writeToGlobalZshrcAndSource();
+        await this.writeEnvConfigAndSource();
         break;
-      case 'read_global':
-        await this.readFromGlobalZshrc();
+      case 'read_config':
+        await this.readFromEnvConfig();
         break;
       case 'validate_keys':
         await this.validateAllApiKeys();
@@ -180,13 +219,13 @@ class AISwitchCLI {
     const providers = Object.entries(this.config.providers);
 
     // 过滤有效的供应商
-    const validProviders = providers.filter(([id, provider]) =>
-      id && provider && provider.name
+    const validProviders = providers.filter(
+      ([id, provider]) => id && provider && provider.name
     );
 
     const choices = validProviders.map(([id, provider]) => ({
       title: `${String(provider.name || '未知供应商')} (${String(id)})`,
-      value: String(id)
+      value: String(id),
     }));
 
     // 获取UI配置
@@ -199,7 +238,9 @@ class AISwitchCLI {
         name: 'providerId',
         message: uiSettings.ui.prompts.selectProvider,
         choices,
-        initial: validProviders.findIndex(([id]) => id === this.config.current.provider)
+        initial: validProviders.findIndex(
+          ([id]) => id === this.config.current.provider
+        ),
       });
     } catch (error) {
       console.error(chalk.red('❌ 选择供应商出错:'), error.message);
@@ -235,7 +276,7 @@ class AISwitchCLI {
 
       await this.saveConfig();
       console.log(chalk.green(`✓ 已切换到供应商: ${provider.name}`));
-      
+
       // 供应商变更后，自动弹出模型选择
       await this.selectModelAfterProviderChange();
     } else {
@@ -274,8 +315,15 @@ class AISwitchCLI {
     }
 
     // 检查当前配置的模型是否在供应商的模型列表中
-    if (this.config.current.model && !provider.models.includes(this.config.current.model)) {
-      console.log(chalk.yellow(`⚠️  当前配置的模型 "${this.config.current.model}" 不在供应商 "${provider.name}" 的模型列表中`));
+    if (
+      this.config.current.model &&
+      !provider.models.includes(this.config.current.model)
+    ) {
+      console.log(
+        chalk.yellow(
+          `⚠️  当前配置的模型 "${this.config.current.model}" 不在供应商 "${provider.name}" 的模型列表中`
+        )
+      );
       console.log(chalk.yellow('将为您重置到第一个可用模型'));
       this.config.current.model = provider.models[0];
       await this.saveConfig();
@@ -292,12 +340,16 @@ class AISwitchCLI {
 
     const choices = validModels.map(model => ({
       title: String(model),
-      value: String(model)
+      value: String(model),
     }));
 
     // 获取UI配置
     const uiSettings = this.configLoader.getUISettings();
-    const response = await this.promptUser(uiSettings.ui.prompts.selectModel, choices, validModels.findIndex(model => model === this.config.current.model));
+    const response = await this.promptUser(
+      uiSettings.ui.prompts.selectModel,
+      choices,
+      validModels.findIndex(model => model === this.config.current.model)
+    );
     if (!response) {
       await this.startInteractiveSelection();
       return;
@@ -317,7 +369,6 @@ class AISwitchCLI {
       await this.continueFlow();
     }
   }
-
 
   /**
    * 选择密钥
@@ -357,7 +408,11 @@ class AISwitchCLI {
 
     // 检查当前配置的 API Key 索引是否有效
     if (this.config.current.apiKeyIndex >= provider.apiKeys.length) {
-      console.log(chalk.yellow(`⚠️  当前配置的 API Key 索引超出范围，将为您重置到第一个可用 API Key`));
+      console.log(
+        chalk.yellow(
+          `⚠️  当前配置的 API Key 索引超出范围，将为您重置到第一个可用 API Key`
+        )
+      );
       this.config.current.apiKeyIndex = 0;
       await this.saveConfig();
     }
@@ -371,14 +426,21 @@ class AISwitchCLI {
       return;
     }
 
-    const choices = validApiKeys.map((apiKey) => ({
-      title: `${String(apiKey.name || '未知')} (${this.configLoader.maskApiKey(String(apiKey.key || 'sk-xxxx'))})`,
-      value: provider.apiKeys.indexOf(apiKey)
+    const choices = validApiKeys.map(apiKey => ({
+      title: `${String(apiKey.name || '未知')} (${this.configLoader.maskApiKey(
+        String(apiKey.key || 'sk-xxxx')
+      )})`,
+      value: provider.apiKeys.indexOf(apiKey),
     }));
 
     // 获取UI配置
     const uiSettings = this.configLoader.getUISettings();
-    const response = await this.promptUser(uiSettings.ui.prompts.selectApiKey, choices, this.config.current.apiKeyIndex, 'apiKeyIndex');
+    const response = await this.promptUser(
+      uiSettings.ui.prompts.selectApiKey,
+      choices,
+      this.config.current.apiKeyIndex,
+      'apiKeyIndex'
+    );
     if (response === null || response === undefined) {
       await this.startInteractiveSelection();
       return;
@@ -388,7 +450,9 @@ class AISwitchCLI {
     if (apiKeyIndex !== this.config.current.apiKeyIndex) {
       this.config.current.apiKeyIndex = apiKeyIndex;
       await this.saveConfig();
-      console.log(chalk.green(`✓ 已切换到 API Key: ${provider.apiKeys[apiKeyIndex].name}`));
+      console.log(
+        chalk.green(`✓ 已切换到 API Key: ${provider.apiKeys[apiKeyIndex].name}`)
+      );
     }
 
     // 根据调用上下文决定后续流程
@@ -412,7 +476,7 @@ class AISwitchCLI {
         type: 'confirm',
         name: 'continueSelection',
         message: '是否继续修改配置?',
-        initial: false
+        initial: false,
       });
     } catch (error) {
       console.error(chalk.red('❌ 确认对话框出错:'), error.message);
@@ -423,7 +487,7 @@ class AISwitchCLI {
     if (response.continueSelection) {
       await this.startInteractiveSelection();
     } else {
-      await this.writeToGlobalZshrcAndSource();
+      await this.writeEnvConfigAndSource();
     }
   }
 
@@ -440,7 +504,7 @@ class AISwitchCLI {
         type: 'confirm',
         name: 'continueSelection',
         message: '配置已完成，是否继续修改配置?',
-        initial: false
+        initial: false,
       });
     } catch (error) {
       console.error(chalk.red('❌ 确认对话框出错:'), error.message);
@@ -451,14 +515,14 @@ class AISwitchCLI {
     if (response.continueSelection) {
       await this.startInteractiveSelection();
     } else {
-      await this.writeToGlobalZshrcAndSource();
+      await this.writeEnvConfigAndSource();
     }
   }
 
   /**
-   * 写入 ~/.zshrc 并自动 source 生效
+   * 写入配置并提示生效
    */
-  async writeToGlobalZshrcAndSource() {
+  async writeEnvConfigAndSource() {
     console.log(chalk.yellow.bold('\n✅ 写入配置...'));
 
     try {
@@ -472,17 +536,37 @@ class AISwitchCLI {
       const baseUrl = provider.baseUrl;
 
       const envVars = {
-        'ANTHROPIC_BASE_URL': baseUrl,
-        'ANTHROPIC_AUTH_TOKEN': apiKey.key,
-        'ANTHROPIC_MODEL': this.config.current.model
+        ANTHROPIC_BASE_URL: baseUrl,
+        ANTHROPIC_AUTH_TOKEN: apiKey.key,
+        ANTHROPIC_MODEL: this.config.current.model,
       };
+
+      // 检测 Shell 和默认路径
+      const shellType = this.envExporter.detectShell();
+      const defaultPath = this.envExporter.getDefaultConfigPath(shellType);
+
+      // 询问用户配置文件路径
+      const pathResponse = await prompts({
+        type: 'text',
+        name: 'configPath',
+        message: `配置文件路径 (${shellType}):`,
+        initial: defaultPath,
+      });
+
+      if (!pathResponse.configPath) {
+        console.log(chalk.yellow('❌ 操作已取消'));
+        await this.startInteractiveSelection();
+        return;
+      }
+
+      const configPath = expandHome(pathResponse.configPath);
 
       // 确认写入
       const confirmResponse = await prompts({
         type: 'confirm',
         name: 'confirm',
-        message: `确认将配置写入 ~/.zshrc?`,
-        initial: true
+        message: `确认将配置写入 ${configPath}?`,
+        initial: true,
       });
 
       if (!confirmResponse.confirm) {
@@ -491,8 +575,13 @@ class AISwitchCLI {
         return;
       }
 
-      // 写入 ~/.zshrc
-      const result = await this.envExporter.writeToGlobalZshrc(envVars, 'zh-CN');
+      // 写入配置
+      const result = await this.envExporter.writeEnvConfig(
+        envVars,
+        configPath,
+        shellType,
+        'zh-CN'
+      );
 
       if (result.success) {
         console.log(chalk.green(`✅ ${result.message}`));
@@ -500,57 +589,93 @@ class AISwitchCLI {
         console.log('\n📋 已写入的环境变量:');
         Object.entries(envVars).forEach(([key, value]) => {
           if (key.includes('TOKEN')) {
-            console.log(`  ${key}: ${value.substring(0, 10)}...${value.substring(value.length - 4)}`);
+            console.log(
+              `  ${key}: ${value.substring(0, 10)}...${value.substring(
+                value.length - 4
+              )}`
+            );
           } else {
             console.log(`  ${key}: ${value}`);
           }
         });
 
         // 简化的环境变量生效提示
-        const sourceCommand = 'source ~/.zshrc';
-        console.log(chalk.green('\n✅ 配置已写入 ~/.zshrc'));
-        console.log(chalk.yellow(`\n📋 使环境变量立即生效：${sourceCommand}\n`));
-        
+        const sourceCommand = `source ${configPath}`;
+        console.log(chalk.green(`\n✅ 配置已写入 ${configPath}`));
+        console.log(
+          chalk.yellow(`\n📋 使环境变量立即生效：${sourceCommand}\n`)
+        );
+
         // 自动复制到剪切板
         console.log(chalk.cyan('📋 正在复制命令到剪切板...'));
         try {
           await this.copyToClipboard(sourceCommand);
-          console.log(chalk.green('✅ 命令已复制到剪切板！直接粘贴执行即可。\n'));
+          console.log(
+            chalk.green('✅ 命令已复制到剪切板！直接粘贴执行即可。\n')
+          );
         } catch (error) {
           console.log(chalk.yellow('⚠️  复制到剪切板失败，请手动复制命令\n'));
         }
 
         console.log(chalk.gray('\n💡 注意:'));
-        console.log(chalk.gray('   - 环境变量已写入 ~/.zshrc，新开终端会自动加载'));
-        console.log(chalk.gray('   - 当前终端需要执行 source ~/.zshrc 命令生效'));
-
+        console.log(
+          chalk.gray(`   - 环境变量已写入 ${configPath}，新开终端会自动加载`)
+        );
+        console.log(
+          chalk.gray(`   - 当前终端需要执行 ${sourceCommand} 命令生效`)
+        );
       } else {
         console.log(chalk.red(result.message));
       }
-
-
     } catch (error) {
       console.error(chalk.red(`❌ 写入配置失败: ${error.message}`));
     }
   }
 
   /**
-   * 读取 ~/.zshrc 配置
+   * 读取配置
    */
-  async readFromGlobalZshrc() {
+  async readFromEnvConfig() {
     console.log(chalk.yellow.bold('\n📖 查看配置...'));
 
     try {
-      const result = await this.envExporter.readFromGlobalZshrc();
+      // 检测 Shell 和默认路径
+      const shellType = this.envExporter.detectShell();
+      const defaultPath = this.envExporter.getDefaultConfigPath(shellType);
+
+      // 询问用户配置文件路径
+      const pathResponse = await prompts({
+        type: 'text',
+        name: 'configPath',
+        message: `配置文件路径 (${shellType}):`,
+        initial: defaultPath,
+      });
+
+      if (!pathResponse.configPath) {
+        console.log(chalk.yellow('❌ 操作已取消'));
+        await this.continueFlow();
+        return;
+      }
+
+      const configPath = expandHome(pathResponse.configPath);
+
+      const result = await this.envExporter.readEnvConfig(
+        configPath,
+        shellType
+      );
 
       if (result.success) {
         console.log(chalk.green('✅ 找到 AI 模型配置'));
-        console.log(chalk.gray(`📁 配置文件: ~/.zshrc`));
+        console.log(chalk.gray(`📁 配置文件: ${configPath}`));
 
         console.log('\n📋 当前环境变量:');
         Object.entries(result.envVars).forEach(([key, value]) => {
           if (key.includes('TOKEN')) {
-            console.log(`  ${key}: ${value.substring(0, 10)}...${value.substring(value.length - 4)}`);
+            console.log(
+              `  ${key}: ${value.substring(0, 10)}...${value.substring(
+                value.length - 4
+              )}`
+            );
           } else {
             console.log(`  ${key}: ${value}`);
           }
@@ -560,8 +685,7 @@ class AISwitchCLI {
         console.log(result.configSection);
 
         console.log('\n💡 如果需要重新加载配置，请执行:');
-        console.log('   source ~/.zshrc');
-
+        console.log(`   source ${configPath}`);
       } else {
         console.log(chalk.yellow(result.message));
         console.log(chalk.gray('\n💡 提示: 可以选择 "✅ 写入配置" 来创建配置'));
@@ -583,8 +707,8 @@ class AISwitchCLI {
       const pbcopy = spawn('pbcopy');
       pbcopy.stdin.write(text);
       pbcopy.stdin.end();
-      
-      pbcopy.on('close', (code) => {
+
+      pbcopy.on('close', code => {
         if (code === 0) {
           resolve();
         } else {
@@ -592,7 +716,7 @@ class AISwitchCLI {
           reject(new Error('pbcopy failed'));
         }
       });
-      
+
       pbcopy.on('error', () => {
         reject(new Error('pbcopy not available'));
       });
@@ -637,8 +761,8 @@ class AISwitchCLI {
       return [];
     }
 
-    return items.filter(item =>
-      item && typeof item === 'string' && item.trim() !== ''
+    return items.filter(
+      item => item && typeof item === 'string' && item.trim() !== ''
     );
   }
 
@@ -652,9 +776,7 @@ class AISwitchCLI {
       return [];
     }
 
-    return apiKeys.filter((apiKey) =>
-      apiKey && apiKey.name && apiKey.key
-    );
+    return apiKeys.filter(apiKey => apiKey && apiKey.name && apiKey.key);
   }
 
   /**
@@ -672,7 +794,7 @@ class AISwitchCLI {
         name: responseKey,
         message,
         choices,
-        initial: initialIndex
+        initial: initialIndex,
       });
 
       if (!response[responseKey]) {
@@ -714,7 +836,7 @@ class AISwitchCLI {
             provider: providerName,
             apiKeyName: apiKeyName,
             status: '⭕️',
-            error: '空密钥'
+            error: '空密钥',
           });
           console.log(`   ⭕️ ${chalk.gray(apiKeyName)} (无密钥) - 空密钥`);
           continue;
@@ -726,21 +848,27 @@ class AISwitchCLI {
             provider: providerName,
             apiKeyName: apiKeyName,
             status: '⏭️',
-            error: '示例密钥'
+            error: '示例密钥',
           });
-          console.log(`   ⏭️  ${chalk.yellow(apiKeyName)} (${this.configLoader.maskApiKey(apiKeyValue)}) - 示例密钥`);
+          console.log(
+            `   ⏭️  ${chalk.yellow(apiKeyName)} (${this.configLoader.maskApiKey(
+              apiKeyValue
+            )}) - 示例密钥`
+          );
           continue;
         }
 
         // 验证API Key
         const isValid = await this.validateSingleApiKey(provider, apiKeyValue);
-        const logMsg = `${apiKeyName} (${this.configLoader.maskApiKey(apiKeyValue)})`
+        const logMsg = `${apiKeyName} (${this.configLoader.maskApiKey(
+          apiKeyValue
+        )})`;
         if (isValid) {
           results.push({
             provider: providerName,
             apiKeyName: apiKeyName,
             status: '✅',
-            error: null
+            error: null,
           });
           console.log(`   ✅ ${chalk.green(logMsg)} `);
         } else {
@@ -748,7 +876,7 @@ class AISwitchCLI {
             provider: providerName,
             apiKeyName: apiKeyName,
             status: '❌',
-            error: '验证失败'
+            error: '验证失败',
           });
           console.log(`   ❌ ${chalk.red(logMsg)}`);
         }
@@ -757,7 +885,9 @@ class AISwitchCLI {
 
     // 显示总结
     console.log(chalk.gray('\n' + '━'.repeat(60)));
-    console.log(chalk.yellow.bold(`\n📊 验证结果统计【总计: ${results.length}】:`));
+    console.log(
+      chalk.yellow.bold(`\n📊 验证结果统计【总计: ${results.length}】:`)
+    );
 
     const validCount = results.filter(r => r.status === '✅').length;
     const invalidCount = results.filter(r => r.status === '❌').length;
@@ -796,7 +926,7 @@ class AISwitchCLI {
       const postData = JSON.stringify({
         model: model,
         max_tokens: 1,
-        messages: [{ role: 'user', content: 'hi' }]
+        messages: [{ role: 'user', content: 'hi' }],
       });
 
       const options = {
@@ -807,14 +937,14 @@ class AISwitchCLI {
         headers: {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(postData),
-          'Authorization': `Bearer ${apiKey}`,
-          'anthropic-version': '2023-06-01'
+          Authorization: `Bearer ${apiKey}`,
+          'anthropic-version': '2023-06-01',
         },
-        timeout: 10000 // 10秒超时
+        timeout: 10000, // 10秒超时
       };
 
-      return new Promise((resolve) => {
-        const req = https.request(options, (res) => {
+      return new Promise(resolve => {
+        const req = https.request(options, res => {
           // 只要不是401/403认证错误，就认为密钥有效
           // 其他错误可能是模型不支持等，但密钥本身是有效的
           if (res.statusCode === 200 || res.statusCode === 400) {
