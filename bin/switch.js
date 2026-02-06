@@ -95,36 +95,47 @@ class AISwitchCLI {
 
   /**
    * 显示当前配置
+   * @param {boolean} compact - 是否使用紧凑格式（用于写入后的摘要）
    */
-  displayCurrentConfig() {
+  displayCurrentConfig(compact = false) {
     const current = this.configLoader.getCurrentConfig(this.config);
 
-    console.log(chalk.yellow.bold('\n📋 当前配置:'));
-    console.log(
-      chalk.white(
-        `  供应商: ${current.provider.name || '未知'} (${chalk.gray(
-          current.provider.id || '未知',
-        )})`,
-      ),
-    );
-    console.log(chalk.white(`  模型:   ${current.model || '未知'}`));
-    console.log(
-      chalk.white(
-        `  API Key: ${current.apiKey.name || '未知'} (${chalk.gray(
-          current.apiKey.key || '未知',
-        )})`,
-      ),
-    );
-    console.log(
-      chalk.white(`  Base URL: ${current.provider.baseUrl || '未知'}`),
-    );
+    if (compact) {
+      // 紧凑格式：单行显示
+      console.log(
+        chalk.cyan(`  ${current.provider.name || '未知'} | `) +
+          chalk.white(`${current.model || '未知'} | `) +
+          chalk.gray(`${current.apiKey.name || '未知'}`),
+      );
+    } else {
+      // 完整格式：多行显示
+      console.log(chalk.yellow.bold('\n📋 当前配置:'));
+      console.log(
+        chalk.white(
+          `  供应商: ${current.provider.name || '未知'} (${chalk.gray(
+            current.provider.id || '未知',
+          )})`,
+        ),
+      );
+      console.log(chalk.white(`  模型:   ${current.model || '未知'}`));
+      console.log(
+        chalk.white(
+          `  API Key: ${current.apiKey.name || '未知'} (${chalk.gray(
+            current.apiKey.key || '未知',
+          )})`,
+        ),
+      );
+      console.log(
+        chalk.white(`  Base URL: ${current.provider.baseUrl || '未知'}`),
+      );
 
-    // 显示模型广场链接
-    if (current.provider.modelHubUrl) {
-      console.log(chalk.white(`  模型广场: ${current.provider.modelHubUrl}`));
+      // 显示模型广场链接
+      if (current.provider.modelHubUrl) {
+        console.log(chalk.white(`  模型广场: ${current.provider.modelHubUrl}`));
+      }
+
+      console.log(chalk.gray('\n' + '━'.repeat(50)));
     }
-
-    console.log(chalk.gray('\n' + '━'.repeat(50)));
   }
 
   /**
@@ -277,11 +288,11 @@ class AISwitchCLI {
       await this.saveConfig();
       console.log(chalk.green(`✓ 已切换到供应商: ${provider.name}`));
 
-      // 供应商变更后，自动弹出模型选择
-      await this.selectModelAfterProviderChange();
+      // 供应商变更后，自动进入快速配置流程
+      await this.quickConfigFlow('model');
     } else {
-      // 如果供应商没有变更，继续正常流程
-      await this.continueFlow();
+      // 如果供应商没有变更，提供下一步选项（聚焦到"选择模型"）
+      await this.promptNextStep('provider');
     }
   }
 
@@ -289,26 +300,26 @@ class AISwitchCLI {
    * 选择模型
    */
   async selectModel() {
-    await this.selectGenericModel(false);
+    await this.selectModelInternal(false);
   }
 
   /**
    * 选择模型（供应商变更后自动调用）
    */
   async selectModelAfterProviderChange() {
-    await this.selectGenericModel(true);
+    await this.selectModelInternal(true);
   }
 
   /**
-   * 通用的模型选择逻辑
-   * @param {boolean} isAfterProviderChange - 是否是供应商变更后调用
+   * 内部模型选择逻辑
+   * @param {boolean} autoFlow - 是否是自动流程（供应商切换后）
    */
-  async selectGenericModel(isAfterProviderChange = false) {
+  async selectModelInternal(autoFlow = false) {
     const providerId = this.config.current.provider;
     const provider = this.config.providers[providerId];
 
     // 验证供应商
-    const validation = await this.validateProvider(providerId, '模型');
+    const validation = this.validateProvider(providerId, '模型');
     if (!validation.isValid) {
       await this.startInteractiveSelection();
       return;
@@ -362,11 +373,13 @@ class AISwitchCLI {
       console.log(chalk.green(`✓ 已切换到模型: ${model}`));
     }
 
-    // 根据调用上下文决定后续流程
-    if (isAfterProviderChange) {
-      await this.selectApiKeyAfterModelChange();
+    // 根据是否是自动流程决定后续操作
+    if (autoFlow) {
+      // 自动流程：继续选择 API Key
+      await this.quickConfigFlow('apiKey');
     } else {
-      await this.continueFlow();
+      // 手动流程：提供下一步选项（聚焦到"选择 API Key"）
+      await this.promptNextStep('model');
     }
   }
 
@@ -374,26 +387,26 @@ class AISwitchCLI {
    * 选择密钥
    */
   async selectApiKey() {
-    await this.selectGenericApiKey(false);
+    await this.selectApiKeyInternal(false);
   }
 
   /**
    * 模型变更后选择 API Key（自动调用）
    */
   async selectApiKeyAfterModelChange() {
-    await this.selectGenericApiKey(true);
+    await this.selectApiKeyInternal(true);
   }
 
   /**
-   * 通用的 API Key 选择逻辑
-   * @param {boolean} isAfterModelChange - 是否是模型变更后调用
+   * 内部 API Key 选择逻辑
+   * @param {boolean} autoFlow - 是否是自动流程
    */
-  async selectGenericApiKey(isAfterModelChange = false) {
+  async selectApiKeyInternal(autoFlow = false) {
     const providerId = this.config.current.provider;
     const provider = this.config.providers[providerId];
 
     // 验证供应商
-    const validation = await this.validateProvider(providerId, 'API Key');
+    const validation = this.validateProvider(providerId, 'API Key');
     if (!validation.isValid) {
       await this.startInteractiveSelection();
       return;
@@ -457,16 +470,146 @@ class AISwitchCLI {
       );
     }
 
-    // 显示当前配置
-    console.log(chalk.gray('\n---'));
-    this.displayCurrentConfig();
-
-    // 自动进入写入配置流程，不再询问
+    // API Key 选择完成后，直接进入写入配置流程
     await this.writeEnvConfigAndSource();
   }
 
   /**
-   * 继续选择流程
+   * 快速配置流程（供应商 → 模型 → 密钥 → 写入配置）
+   * @param {string} nextStep - 下一步骤 ('model' 或 'apiKey')
+   */
+  async quickConfigFlow(nextStep) {
+    switch (nextStep) {
+      case 'model':
+        await this.selectModelInternal(true);
+        break;
+      case 'apiKey':
+        await this.selectApiKeyInternal(true);
+        break;
+    }
+  }
+
+  /**
+   * 在用户完成某个配置步骤后，提供下一步选项
+   * @param {string} lastStep - 当前完成的步骤 ('provider', 'model', 'apiKey')
+   */
+  async promptNextStep(lastStep) {
+    console.log(chalk.gray('\n---'));
+    this.displayCurrentConfig();
+
+    // 根据当前步骤构建可用选项
+    const nextOptions = [];
+
+    // 可以继续修改供应商
+    nextOptions.push({
+      title: '🔄 切换供应商',
+      value: 'provider',
+      description: '选择其他供应商',
+    });
+
+    // 可以继续修改模型
+    nextOptions.push({
+      title: '🤖 切换模型',
+      value: 'model',
+      description: '选择其他模型',
+    });
+
+    // 可以继续修改 API Key
+    nextOptions.push({
+      title: '🔑 切换 API Key',
+      value: 'apiKey',
+      description: '选择其他 API Key',
+    });
+
+    // 分隔线
+    nextOptions.push({ title: '──────────────', disabled: true });
+
+    // 写入配置（推荐选项）
+    nextOptions.push({
+      title: '✅ 写入配置',
+      value: 'write',
+      description: '保存配置到环境变量文件',
+    });
+
+    // 返回主菜单
+    nextOptions.push({
+      title: '🏠 返回主菜单',
+      value: 'menu',
+      description: '返回主菜单选择其他操作',
+    });
+
+    // 退出
+    nextOptions.push({
+      title: '❌ 退出',
+      value: 'exit',
+      description: '退出程序',
+    });
+
+    console.log(chalk.yellow.bold('\n📋 下一步操作:'));
+
+    const choices = nextOptions.map(option => ({
+      title: option.title,
+      value: option.value,
+      disabled: option.disabled,
+    }));
+
+    // 根据上一步骤设置初始焦点
+    // 选项顺序: 0=供应商, 1=模型, 2=密钥, 3=分隔线, 4=写入, 5=主菜单, 6=退出
+    let initialIndex = 0;
+    if (lastStep === 'provider') {
+      initialIndex = 1; // 聚焦到"切换模型"
+    } else if (lastStep === 'model') {
+      initialIndex = 2; // 聚焦到"切换 API Key"
+    } else if (lastStep === 'apiKey') {
+      initialIndex = 4; // 聚焦到"写入配置"
+    }
+
+    let response;
+    try {
+      response = await prompts({
+        type: 'select',
+        name: 'nextAction',
+        message: '请选择下一步操作:',
+        choices,
+        initial: initialIndex,
+      });
+    } catch (error) {
+      console.error(chalk.red('❌ 选择操作出错:'), error.message);
+      await this.startInteractiveSelection();
+      return;
+    }
+
+    if (!response.nextAction) {
+      console.log(chalk.yellow('\n⚠️  操作已取消'));
+      await this.startInteractiveSelection();
+      return;
+    }
+
+    switch (response.nextAction) {
+      case 'provider':
+        await this.selectProvider();
+        break;
+      case 'model':
+        await this.selectModel();
+        break;
+      case 'apiKey':
+        await this.selectApiKey();
+        break;
+      case 'write':
+        await this.writeEnvConfigAndSource();
+        break;
+      case 'menu':
+        await this.startInteractiveSelection();
+        break;
+      case 'exit':
+        console.log(chalk.green('\n👋 再见！'));
+        process.exit(0);
+        break;
+    }
+  }
+
+  /**
+   * 继续选择流程（保留用于兼容性）
    */
   async continueFlow() {
     console.log(chalk.gray('\n---'));
@@ -525,8 +668,6 @@ class AISwitchCLI {
    * 写入配置并提示生效
    */
   async writeEnvConfigAndSource() {
-    console.log(chalk.yellow.bold('\n✅ 写入配置...'));
-
     try {
       // 在写入配置前进行完整验证
       this.configLoader.validateConfigFull(this.config);
@@ -545,21 +686,18 @@ class AISwitchCLI {
 
       // 检测 Shell 和默认路径
       const shellType = this.envExporter.detectShell();
-      const defaultPath =
-        this.config.lastConfigPath ||
-        this.envExporter.getDefaultConfigPath(shellType);
+      const defaultPath = this.envExporter.getDefaultConfigPath(shellType);
 
-      // 询问用户配置文件路径
+      // 询问用户配置文件路径（使用上次路径或默认路径作为初始值）
       const pathResponse = await prompts({
         type: 'text',
         name: 'configPath',
         message: `配置文件路径 (${shellType}):`,
-        initial: defaultPath,
+        initial: this.config.lastConfigPath || defaultPath,
       });
 
       if (!pathResponse.configPath) {
-        console.log(chalk.yellow('❌ 操作已取消'));
-        await this.startInteractiveSelection();
+        console.log(chalk.yellow('\n⚠️  操作已取消'));
         return;
       }
 
@@ -574,8 +712,7 @@ class AISwitchCLI {
       });
 
       if (!confirmResponse.confirm) {
-        console.log(chalk.yellow('❌ 操作已取消'));
-        await this.startInteractiveSelection();
+        console.log(chalk.yellow('\n⚠️  操作已取消'));
         return;
       }
 
@@ -593,46 +730,28 @@ class AISwitchCLI {
           this.config.lastConfigPath = configPath;
           await this.saveConfig();
         }
-        console.log(chalk.green(`✅ ${result.message}`));
 
-        console.log('\n📋 已写入的环境变量:');
-        Object.entries(envVars).forEach(([key, value]) => {
-          if (key.includes('TOKEN')) {
-            console.log(
-              `  ${key}: ${value.substring(0, 10)}...${value.substring(
-                value.length - 4,
-              )}`,
-            );
-          } else {
-            console.log(`  ${key}: ${value}`);
-          }
-        });
+        // 显示配置摘要和写入结果
+        console.log(chalk.gray('\n' + '━'.repeat(50)));
+        console.log(chalk.green.bold('✅ 配置已写入'));
+        console.log(chalk.gray(`文件: ${configPath}`));
 
-        // 简化的环境变量生效提示
+        console.log(chalk.yellow('\n📋 配置摘要:'));
+        this.displayCurrentConfig(true);
+
+        // 生效命令和剪切板
         const sourceCommand = `source ${configPath}`;
-        console.log(chalk.green(`\n✅ 配置已写入 ${configPath}`));
-        console.log(
-          chalk.yellow(`\n📋 使环境变量立即生效：${sourceCommand}\n`),
-        );
+        console.log(chalk.cyan(`\n💡 使环境变量生效：`));
+        console.log(chalk.gray(`   ${sourceCommand}`));
 
-        // 自动复制到剪切板
-        console.log(chalk.cyan('📋 正在复制命令到剪切板...'));
         try {
           await this.copyToClipboard(sourceCommand);
-          console.log(
-            chalk.green('✅ 命令已复制到剪切板！直接粘贴执行即可。\n'),
-          );
+          console.log(chalk.green(`   (已复制到剪切板)`));
         } catch (error) {
-          console.log(chalk.yellow('⚠️  复制到剪切板失败，请手动复制命令\n'));
+          // 静默失败，不影响主流程
         }
 
-        console.log(chalk.gray('\n💡 注意:'));
-        console.log(
-          chalk.gray(`   - 环境变量已写入 ${configPath}，新开终端会自动加载`),
-        );
-        console.log(
-          chalk.gray(`   - 当前终端需要执行 ${sourceCommand} 命令生效`),
-        );
+        console.log('');
       } else {
         console.log(chalk.red(result.message));
       }
@@ -676,33 +795,22 @@ class AISwitchCLI {
       );
 
       if (result.success) {
-        console.log(chalk.green('✅ 找到 AI 模型配置'));
-        console.log(chalk.gray(`📁 配置文件: ${configPath}`));
-
         // 保存最后使用的配置路径
         if (this.config.lastConfigPath !== configPath) {
           this.config.lastConfigPath = configPath;
           await this.saveConfig();
         }
 
-        console.log('\n📋 当前环境变量:');
-        Object.entries(result.envVars).forEach(([key, value]) => {
-          if (key.includes('TOKEN')) {
-            console.log(
-              `  ${key}: ${value.substring(0, 10)}...${value.substring(
-                value.length - 4,
-              )}`,
-            );
-          } else {
-            console.log(`  ${key}: ${value}`);
-          }
-        });
+        // 精简输出
+        console.log(chalk.gray('\n' + '━'.repeat(50)));
+        console.log(chalk.yellow.bold('📖 配置文件'));
+        console.log(chalk.gray(`路径: ${configPath}`));
 
-        console.log('\n🔧 配置详情:');
+        console.log(chalk.yellow('\n🔧 配置内容:'));
         console.log(result.configSection);
 
-        console.log('\n💡 如果需要重新加载配置，请执行:');
-        console.log(`   source ${configPath}`);
+        console.log(chalk.cyan(`\n💡 重新加载: source ${configPath}`));
+        console.log('');
       } else {
         console.log(chalk.yellow(result.message));
         console.log(chalk.gray('\n💡 提示: 可以选择 "✅ 写入配置" 来创建配置'));
@@ -757,7 +865,7 @@ class AISwitchCLI {
    * @param {string} context - 验证上下文（用于错误信息）
    * @returns {object} - 验证结果 { isValid: boolean, provider?: object, error?: string }
    */
-  async validateProvider(providerId, context = '配置') {
+  validateProvider(providerId, context = '配置') {
     const provider = this.config.providers[providerId];
 
     if (!provider) {
@@ -814,7 +922,12 @@ class AISwitchCLI {
         initial: initialIndex,
       });
 
-      if (!response[responseKey]) {
+      // 修复：使用严格的 undefined/null 检查，而不是 falsy 检查
+      // 因为当值为 0 时，!0 是 true，会导致错误地返回 null
+      if (
+        response[responseKey] === undefined ||
+        response[responseKey] === null
+      ) {
         return null;
       }
 
@@ -1010,7 +1123,7 @@ if (args.includes('--help') || args.includes('-h')) {
   ccs        # 启动交互式配置
 
 配置文件位置:
-  - ~/.claude/ccs-providers.json
+   ~/.claude/ccs-providers.json
 
 更多信息请访问: https://github.com/your-repo/claude-code-switch
   `);
