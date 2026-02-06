@@ -103,20 +103,20 @@ class AISwitchCLI {
     console.log(
       chalk.white(
         `  供应商: ${current.provider.name || '未知'} (${chalk.gray(
-          current.provider.id || '未知'
-        )})`
-      )
+          current.provider.id || '未知',
+        )})`,
+      ),
     );
     console.log(chalk.white(`  模型:   ${current.model || '未知'}`));
     console.log(
       chalk.white(
         `  API Key: ${current.apiKey.name || '未知'} (${chalk.gray(
-          current.apiKey.key || '未知'
-        )})`
-      )
+          current.apiKey.key || '未知',
+        )})`,
+      ),
     );
     console.log(
-      chalk.white(`  Base URL: ${current.provider.baseUrl || '未知'}`)
+      chalk.white(`  Base URL: ${current.provider.baseUrl || '未知'}`),
     );
 
     // 显示模型广场链接
@@ -170,7 +170,7 @@ class AISwitchCLI {
     } catch (error) {
       console.error(
         chalk.red('❌ prompts 库出错，使用降级界面:'),
-        error.message
+        error.message,
       );
       try {
         response = await this.fallbackSelect('请选择操作:', choices);
@@ -220,7 +220,7 @@ class AISwitchCLI {
 
     // 过滤有效的供应商
     const validProviders = providers.filter(
-      ([id, provider]) => id && provider && provider.name
+      ([id, provider]) => id && provider && provider.name,
     );
 
     const choices = validProviders.map(([id, provider]) => ({
@@ -239,7 +239,7 @@ class AISwitchCLI {
         message: uiSettings.ui.prompts.selectProvider,
         choices,
         initial: validProviders.findIndex(
-          ([id]) => id === this.config.current.provider
+          ([id]) => id === this.config.current.provider,
         ),
       });
     } catch (error) {
@@ -321,8 +321,8 @@ class AISwitchCLI {
     ) {
       console.log(
         chalk.yellow(
-          `⚠️  当前配置的模型 "${this.config.current.model}" 不在供应商 "${provider.name}" 的模型列表中`
-        )
+          `⚠️  当前配置的模型 "${this.config.current.model}" 不在供应商 "${provider.name}" 的模型列表中`,
+        ),
       );
       console.log(chalk.yellow('将为您重置到第一个可用模型'));
       this.config.current.model = provider.models[0];
@@ -348,7 +348,7 @@ class AISwitchCLI {
     const response = await this.promptUser(
       uiSettings.ui.prompts.selectModel,
       choices,
-      validModels.findIndex(model => model === this.config.current.model)
+      validModels.findIndex(model => model === this.config.current.model),
     );
     if (!response) {
       await this.startInteractiveSelection();
@@ -410,8 +410,8 @@ class AISwitchCLI {
     if (this.config.current.apiKeyIndex >= provider.apiKeys.length) {
       console.log(
         chalk.yellow(
-          `⚠️  当前配置的 API Key 索引超出范围，将为您重置到第一个可用 API Key`
-        )
+          `⚠️  当前配置的 API Key 索引超出范围，将为您重置到第一个可用 API Key`,
+        ),
       );
       this.config.current.apiKeyIndex = 0;
       await this.saveConfig();
@@ -428,7 +428,7 @@ class AISwitchCLI {
 
     const choices = validApiKeys.map(apiKey => ({
       title: `${String(apiKey.name || '未知')} (${this.configLoader.maskApiKey(
-        String(apiKey.key || 'sk-xxxx')
+        String(apiKey.key || 'sk-xxxx'),
       )})`,
       value: provider.apiKeys.indexOf(apiKey),
     }));
@@ -439,7 +439,7 @@ class AISwitchCLI {
       uiSettings.ui.prompts.selectApiKey,
       choices,
       this.config.current.apiKeyIndex,
-      'apiKeyIndex'
+      'apiKeyIndex',
     );
     if (response === null || response === undefined) {
       await this.startInteractiveSelection();
@@ -451,16 +451,18 @@ class AISwitchCLI {
       this.config.current.apiKeyIndex = apiKeyIndex;
       await this.saveConfig();
       console.log(
-        chalk.green(`✓ 已切换到 API Key: ${provider.apiKeys[apiKeyIndex].name}`)
+        chalk.green(
+          `✓ 已切换到 API Key: ${provider.apiKeys[apiKeyIndex].name}`,
+        ),
       );
     }
 
-    // 根据调用上下文决定后续流程
-    if (isAfterModelChange) {
-      await this.continueFlowAfterAutoSelection();
-    } else {
-      await this.continueFlow();
-    }
+    // 显示当前配置
+    console.log(chalk.gray('\n---'));
+    this.displayCurrentConfig();
+
+    // 自动进入写入配置流程，不再询问
+    await this.writeEnvConfigAndSource();
   }
 
   /**
@@ -543,7 +545,9 @@ class AISwitchCLI {
 
       // 检测 Shell 和默认路径
       const shellType = this.envExporter.detectShell();
-      const defaultPath = this.envExporter.getDefaultConfigPath(shellType);
+      const defaultPath =
+        this.config.lastConfigPath ||
+        this.envExporter.getDefaultConfigPath(shellType);
 
       // 询问用户配置文件路径
       const pathResponse = await prompts({
@@ -580,10 +584,15 @@ class AISwitchCLI {
         envVars,
         configPath,
         shellType,
-        'zh-CN'
+        'zh-CN',
       );
 
       if (result.success) {
+        // 保存最后使用的配置路径
+        if (this.config.lastConfigPath !== configPath) {
+          this.config.lastConfigPath = configPath;
+          await this.saveConfig();
+        }
         console.log(chalk.green(`✅ ${result.message}`));
 
         console.log('\n📋 已写入的环境变量:');
@@ -591,8 +600,8 @@ class AISwitchCLI {
           if (key.includes('TOKEN')) {
             console.log(
               `  ${key}: ${value.substring(0, 10)}...${value.substring(
-                value.length - 4
-              )}`
+                value.length - 4,
+              )}`,
             );
           } else {
             console.log(`  ${key}: ${value}`);
@@ -603,7 +612,7 @@ class AISwitchCLI {
         const sourceCommand = `source ${configPath}`;
         console.log(chalk.green(`\n✅ 配置已写入 ${configPath}`));
         console.log(
-          chalk.yellow(`\n📋 使环境变量立即生效：${sourceCommand}\n`)
+          chalk.yellow(`\n📋 使环境变量立即生效：${sourceCommand}\n`),
         );
 
         // 自动复制到剪切板
@@ -611,7 +620,7 @@ class AISwitchCLI {
         try {
           await this.copyToClipboard(sourceCommand);
           console.log(
-            chalk.green('✅ 命令已复制到剪切板！直接粘贴执行即可。\n')
+            chalk.green('✅ 命令已复制到剪切板！直接粘贴执行即可。\n'),
           );
         } catch (error) {
           console.log(chalk.yellow('⚠️  复制到剪切板失败，请手动复制命令\n'));
@@ -619,10 +628,10 @@ class AISwitchCLI {
 
         console.log(chalk.gray('\n💡 注意:'));
         console.log(
-          chalk.gray(`   - 环境变量已写入 ${configPath}，新开终端会自动加载`)
+          chalk.gray(`   - 环境变量已写入 ${configPath}，新开终端会自动加载`),
         );
         console.log(
-          chalk.gray(`   - 当前终端需要执行 ${sourceCommand} 命令生效`)
+          chalk.gray(`   - 当前终端需要执行 ${sourceCommand} 命令生效`),
         );
       } else {
         console.log(chalk.red(result.message));
@@ -641,7 +650,9 @@ class AISwitchCLI {
     try {
       // 检测 Shell 和默认路径
       const shellType = this.envExporter.detectShell();
-      const defaultPath = this.envExporter.getDefaultConfigPath(shellType);
+      const defaultPath =
+        this.config.lastConfigPath ||
+        this.envExporter.getDefaultConfigPath(shellType);
 
       // 询问用户配置文件路径
       const pathResponse = await prompts({
@@ -661,20 +672,26 @@ class AISwitchCLI {
 
       const result = await this.envExporter.readEnvConfig(
         configPath,
-        shellType
+        shellType,
       );
 
       if (result.success) {
         console.log(chalk.green('✅ 找到 AI 模型配置'));
         console.log(chalk.gray(`📁 配置文件: ${configPath}`));
 
+        // 保存最后使用的配置路径
+        if (this.config.lastConfigPath !== configPath) {
+          this.config.lastConfigPath = configPath;
+          await this.saveConfig();
+        }
+
         console.log('\n📋 当前环境变量:');
         Object.entries(result.envVars).forEach(([key, value]) => {
           if (key.includes('TOKEN')) {
             console.log(
               `  ${key}: ${value.substring(0, 10)}...${value.substring(
-                value.length - 4
-              )}`
+                value.length - 4,
+              )}`,
             );
           } else {
             console.log(`  ${key}: ${value}`);
@@ -762,7 +779,7 @@ class AISwitchCLI {
     }
 
     return items.filter(
-      item => item && typeof item === 'string' && item.trim() !== ''
+      item => item && typeof item === 'string' && item.trim() !== '',
     );
   }
 
@@ -852,8 +869,8 @@ class AISwitchCLI {
           });
           console.log(
             `   ⏭️  ${chalk.yellow(apiKeyName)} (${this.configLoader.maskApiKey(
-              apiKeyValue
-            )}) - 示例密钥`
+              apiKeyValue,
+            )}) - 示例密钥`,
           );
           continue;
         }
@@ -861,7 +878,7 @@ class AISwitchCLI {
         // 验证API Key
         const isValid = await this.validateSingleApiKey(provider, apiKeyValue);
         const logMsg = `${apiKeyName} (${this.configLoader.maskApiKey(
-          apiKeyValue
+          apiKeyValue,
         )})`;
         if (isValid) {
           results.push({
@@ -886,7 +903,7 @@ class AISwitchCLI {
     // 显示总结
     console.log(chalk.gray('\n' + '━'.repeat(60)));
     console.log(
-      chalk.yellow.bold(`\n📊 验证结果统计【总计: ${results.length}】:`)
+      chalk.yellow.bold(`\n📊 验证结果统计【总计: ${results.length}】:`),
     );
 
     const validCount = results.filter(r => r.status === '✅').length;
