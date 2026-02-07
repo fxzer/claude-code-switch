@@ -10,6 +10,7 @@ const path = require('path');
 const readline = require('readline');
 const { spawn } = require('child_process');
 const os = require('os');
+const fs = require('fs-extra');
 const ConfigLoader = require('../lib/config-loader');
 const EnvExporter = require('../lib/env-exporter');
 
@@ -761,6 +762,40 @@ class AISwitchCLI {
   }
 
   /**
+   * 显示环境变量配置（非交互式）
+   */
+  async displayEnvConfig(configPath) {
+    const shellType = this.envExporter.detectShell();
+
+    // 根据文件内容识别 shell 格式
+    let detectShellType = shellType;
+    try {
+      if (await fs.pathExists(configPath)) {
+        const content = await fs.readFile(configPath, 'utf8');
+        if (content.includes('set -gx')) {
+          detectShellType = 'fish';
+        } else if (content.includes('export ')) {
+          detectShellType = 'bash';
+        }
+      }
+    } catch (e) {
+      // 忽略读取错误
+    }
+
+    const result = await this.envExporter.readEnvConfig(configPath, detectShellType);
+
+    if (result.success) {
+      console.log(chalk.white(`  文件格式: ${detectShellType}`));
+      console.log(chalk.yellow('\n🔧 配置内容:'));
+      console.log(result.configSection);
+      console.log('');
+    } else {
+      console.log(chalk.yellow(result.message));
+      console.log(chalk.gray('\n💡 提示: 可以选择 "✅ 写入配置" 来创建配置'));
+    }
+  }
+
+  /**
    * 读取配置
    */
   async readFromEnvConfig() {
@@ -789,32 +824,20 @@ class AISwitchCLI {
 
       const configPath = expandHome(pathResponse.configPath);
 
-      const result = await this.envExporter.readEnvConfig(
-        configPath,
-        shellType,
-      );
-
-      if (result.success) {
-        // 保存最后使用的配置路径
-        if (this.config.lastConfigPath !== configPath) {
-          this.config.lastConfigPath = configPath;
-          await this.saveConfig();
-        }
-
-        // 精简输出
-        console.log(chalk.gray('\n' + '━'.repeat(50)));
-        console.log(chalk.yellow.bold('📖 配置文件'));
-        console.log(chalk.gray(`路径: ${configPath}`));
-
-        console.log(chalk.yellow('\n🔧 配置内容:'));
-        console.log(result.configSection);
-
-        console.log(chalk.cyan(`\n💡 重新加载: source ${configPath}`));
-        console.log('');
-      } else {
-        console.log(chalk.yellow(result.message));
-        console.log(chalk.gray('\n💡 提示: 可以选择 "✅ 写入配置" 来创建配置'));
+      // 保存最后使用的配置路径
+      if (this.config.lastConfigPath !== configPath) {
+        this.config.lastConfigPath = configPath;
+        await this.saveConfig();
       }
+
+      // 复用显示方法
+      console.log(chalk.gray('\n' + '━'.repeat(50)));
+      console.log(chalk.yellow.bold('📖 配置文件'));
+      console.log(chalk.gray(`路径: ${configPath}`));
+
+      await this.displayEnvConfig(configPath);
+
+      console.log(chalk.cyan(`💡 重新加载: source ${configPath}`));
     } catch (error) {
       console.error(chalk.red(`❌ 读取配置失败: ${error.message}`));
     }
@@ -1117,10 +1140,12 @@ if (args.includes('--help') || args.includes('-h')) {
 
 选项:
   -h, --help     显示帮助信息
+  -s, --show     显示当前配置
   -v, --version  显示版本信息
 
 示例:
-  ccs        # 启动交互式配置
+  ccs            # 启动交互式配置
+  ccs -s         # 快速查看当前配置
 
 配置文件位置:
    ~/.claude/ccs-providers.json
@@ -1128,6 +1153,33 @@ if (args.includes('--help') || args.includes('-h')) {
 更多信息请访问: https://github.com/fxzer/claude-code-switch
   `);
   process.exit(0);
+}
+
+if (args.includes('--show') || args.includes('-s')) {
+  // 快速显示当前配置，复用现有方法
+  (async () => {
+    const cli = new AISwitchCLI();
+    try {
+      await cli.loadConfig();
+      cli.displayCurrentConfig();
+
+      // 显示环境变量配置
+      const shellType = cli.envExporter.detectShell();
+      const configPath =
+        cli.config.lastConfigPath ||
+        cli.envExporter.getDefaultConfigPath(shellType);
+
+      console.log(chalk.yellow.bold('\n🔧 环境变量配置:'));
+      console.log(chalk.white(`  配置文件: ${configPath}`));
+
+      await cli.displayEnvConfig(configPath);
+    } catch (error) {
+      console.error(chalk.red.bold('\n❌ 错误:'), error.message);
+      process.exit(1);
+    }
+    process.exit(0);
+  })();
+  return;
 }
 
 if (args.includes('--version') || args.includes('-v')) {
