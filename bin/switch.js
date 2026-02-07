@@ -1125,7 +1125,7 @@ if (args.includes('--help') || args.includes('-h')) {
 配置文件位置:
    ~/.claude/ccs-providers.json
 
-更多信息请访问: https://github.com/your-repo/claude-code-switch
+更多信息请访问: https://github.com/fxzer/claude-code-switch
   `);
   process.exit(0);
 }
